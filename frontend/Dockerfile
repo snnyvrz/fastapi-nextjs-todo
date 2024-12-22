@@ -1,23 +1,24 @@
-# Stage 0, "build-stage", based on Node.js, to build and compile the frontend
-FROM node:20 AS build-stage
+# Stage 1: Build
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-COPY package*.json /app/
-
+COPY package.json package-lock.json ./
 RUN npm install
 
-COPY ./ /app/
-
-ARG VITE_API_URL=${VITE_API_URL}
-
+COPY . .
 RUN npm run build
 
+# Stage 2: Runtime for Node.js App
+FROM node:22-alpine AS node-runner
 
-# Stage 1, based on Nginx, to have only the compiled app, ready for production with Nginx
-FROM nginx:1
+WORKDIR /app
 
-COPY --from=build-stage /app/dist/ /usr/share/nginx/html
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/node_modules ./node_modules
 
-COPY ./nginx.conf /etc/nginx/conf.d/default.conf
-COPY ./nginx-backend-not-found.conf /etc/nginx/extra-conf.d/backend-not-found.conf
+EXPOSE 3000
+
+CMD ["npm", "start"]
